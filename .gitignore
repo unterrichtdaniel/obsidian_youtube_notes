@@ -1,0 +1,54 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.venv/
+
+# Environment variable overrides (direnv)
+.envrc
+.env
+
+# VSCode settings (optional, if using VSCode)
+.vscode/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# MyPy / Pylint / other lint tools
+.mypy_cache/
+.dmypy.json
+.pyre/
+.pytype/
+
+# Logs
+*.log
+
+# macOS
+.DS_Store
+
+# System files
+Thumbs.db
+
+# Obsidian vault (or other local content)
+vault/

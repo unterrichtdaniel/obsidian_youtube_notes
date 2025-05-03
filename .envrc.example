@@ -1,0 +1,81 @@
+# YouTube to Obsidian Notes Configuration
+# Copy this file to .envrc and modify as needed
+
+# Required: YouTube API key for fetching video data
+export YOUTUBE_API_KEY="your-youtube-api-key"
+
+# Required: Path to your Obsidian vault
+export OBSIDIAN_VAULT_PATH="path/to/vault"
+
+# Optional: Default author for videos without channel info
+export DEFAULT_AUTHOR="Unknown Channel"
+
+#############################
+# Retry Configuration      #
+#############################
+# Adjust these settings based on the API service's reliability
+# Particularly important for services like Gemini that may need more retries
+
+# Maximum number of retry attempts (default: 3)
+export MAX_RETRIES="3"
+
+# Initial delay between retries in seconds (default: 1.0)
+export INITIAL_RETRY_DELAY="1.0"
+
+# Maximum delay between retries in seconds (default: 60.0)
+export MAX_RETRY_DELAY="60.0"
+
+# Base for exponential backoff (default: 2.0)
+export RETRY_EXPONENTIAL_BASE="2.0"
+
+#############################
+# AI Service Configuration  #
+#############################
+
+# Choose ONE of the following configurations by uncommenting
+# Comment out all others
+
+#-----------------------
+# 1. Local Ollama (Default)
+#-----------------------
+# Use this if you have Ollama running locally
+export API_ENDPOINT="http://localhost:11434/v1"
+export API_KEY=""  # Leave empty for local Ollama
+export MODEL="gemma:3b"  # Use any model you've pulled with 'ollama pull'
+export TEST_MODEL="gemma:3b"
+
+#-----------------------
+# 2. Google Gemini
+#-----------------------
+# Uncomment and configure to use Google's Gemini
+# Note: Gemini's public API can be busy, so you might want to increase retries:
+# export MAX_RETRIES="5"
+# export INITIAL_RETRY_DELAY="2.0"
+# export MAX_RETRY_DELAY="120.0"
+# export API_ENDPOINT="https://generativelanguage.googleapis.com/v1"
+# export API_KEY="your-gemini-api-key"  # Get from Google AI Studio
+# export MODEL="gemini-pro"
+# export TEST_MODEL="gemini-pro"
+
+#-----------------------
+# 3. OpenAI
+#-----------------------
+# Uncomment and configure to use OpenAI's API
+# export API_ENDPOINT="https://api.openai.com/v1"
+# export API_KEY="your-openai-api-key"  # Get from OpenAI dashboard
+# export MODEL="gpt-3.5-turbo"
+# export TEST_MODEL="gpt-3.5-turbo"
+
+#-----------------------
+# 4. Azure OpenAI
+#-----------------------
+# Uncomment and configure to use Azure OpenAI
+# export API_ENDPOINT="https://your-resource.openai.azure.com/openai/deployments/your-deployment"
+# export API_KEY="your-azure-api-key"
+# export MODEL="gpt-35-turbo"  # Must match your Azure deployment
+# export TEST_MODEL="gpt-35-turbo"
+
+# After configuring:
+# 1. Save this file as .envrc
+# 2. Run 'direnv allow' to load the environment
+# 3. The tool will use the configured AI service for generating summaries
