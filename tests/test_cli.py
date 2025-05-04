@@ -351,6 +351,8 @@ def test_cli_process_dry_run(runner, mock_clients, temp_output_dir):
 
 def test_cli_process_verbose(runner, mock_clients, temp_output_dir):
     """Test the --verbose flag enables DEBUG logging."""
+    import logging
+    
     mock_yt, mock_tr, mock_writer = mock_clients
     video_id = "dQw4w9WgXcQ"
     
@@ -359,43 +361,49 @@ def test_cli_process_verbose(runner, mock_clients, temp_output_dir):
     
     # We need to patch the logger used in main.py
     with patch('yt_obsidian.main.logger') as mock_logger:
-        result = runner.invoke(cli, [
-            'process', video_id,
-            '--output-dir', str(temp_output_dir),
-            '--verbose'
-            # '-v' # Alternative short flag
-        ])
+        # Also patch the getLogger function to track if it was set to DEBUG
+        with patch('logging.getLogger') as mock_get_logger:
+            mock_root_logger = Mock()
+            mock_get_logger.return_value = mock_root_logger
+            
+            result = runner.invoke(cli, [
+                'process', video_id,
+                '--output-dir', str(temp_output_dir),
+                '--verbose'
+                # '-v' # Alternative short flag
+            ])
 
-        assert result.exit_code == 0
-        # Check if the logger level was set to DEBUG
-        # Note: Accessing the effective level might require patching logging.getLogger()
-        # or checking if specific debug messages were logged.
-        # A simpler check is if the debug message for enabling verbose logging was called.
-        mock_logger.debug.assert_any_call("Verbose logging enabled.")
-        # Check if other debug messages were logged during processing
-        mock_logger.debug.assert_any_call(f"Fetching details for video: {video_id}")
+            assert result.exit_code == 0
+            # Check if the logger level was set to DEBUG
+            mock_logger.debug.assert_any_call("Verbose logging enabled.")
+            
+            # Verify setLevel was called with DEBUG
+            mock_root_logger.setLevel.assert_called_with(logging.DEBUG)
 
 
 def test_cli_process_invalid_input(runner, mock_clients, temp_output_dir, caplog):
     """Test CLI behavior with invalid input."""
     import logging
-    caplog.set_level(logging.ERROR) # Capture ERROR level logs
-    mock_yt, mock_tr, mock_writer = mock_clients # Unpack mock_clients here
-
-    invalid_input = 'invalid-youtube-string'
-    # Ensure API verification returns None for invalid input
-    mock_yt.verify_input_type.return_value = (None, None)
-
-    result = runner.invoke(cli, [
-        'process', invalid_input,
-        '--output-dir', str(temp_output_dir)
-    ])
-    assert result.exit_code != 0 # Should exit with an error code
-    # Check the log output instead of stdout/stderr
-    assert f"Could not determine content type or extract valid ID from input via API: {invalid_input}" in caplog.text
     
-    # Verify API verification was called
-    mock_yt.verify_input_type.assert_called_with(invalid_input)
+    # Patch the logger directly instead of using caplog
+    with patch('yt_obsidian.main.logger') as mock_logger:
+        mock_yt, mock_tr, mock_writer = mock_clients # Unpack mock_clients here
+
+        invalid_input = 'invalid-youtube-string'
+        # Ensure API verification returns None for invalid input
+        mock_yt.verify_input_type.return_value = (None, None)
+
+        result = runner.invoke(cli, [
+            'process', invalid_input,
+            '--output-dir', str(temp_output_dir)
+        ])
+        assert result.exit_code != 0 # Should exit with an error code
+        
+        # Check that the error was logged
+        mock_logger.error.assert_any_call(f"Could not determine content type or extract valid ID from input via API: {invalid_input}")
+        
+        # Verify API verification was called
+        mock_yt.verify_input_type.assert_called_with(invalid_input)
 
 
 def test_cli_process_output_dir_creation(runner, mock_clients, tmp_path):

@@ -2,12 +2,17 @@ import logging
 import os
 import sys
 import time
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict
 import openai
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, RetryError
+import socket  # For socket.timeout
 
-from yt_obsidian.config import Settings
+# Use TYPE_CHECKING to avoid circular imports
+if TYPE_CHECKING:
+    from ..container import CachedSession
+
+from yt_obsidian.config import settings, AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -18,11 +23,21 @@ class SummaryRequest(BaseModel):
     template: Optional[str] = None
 
 class OpenAICompatibleClient:
-    def __init__(self):
-        self.settings = Settings()
+    def __init__(self, session: Optional["CachedSession"] = None):
+        """
+        Initialize the OpenAI compatible client with an optional session.
+        
+        Args:
+            session: Optional CachedSession for HTTP requests with retry and timeout handling
+        """
+        # Reload settings to ensure we get the latest environment variables
+        from yt_obsidian.config import AppConfig
+        self.settings = AppConfig()
+        
         self.base_url = self.settings.api_endpoint
         # Convert empty string to None
         self.api_key = self.settings.api_key if self.settings.api_key else None
+        self.session = session
         
         # Use test model in test environment, production model otherwise
         self.model = self.settings.test_model if 'pytest' in sys.modules else self.settings.model
@@ -32,20 +47,44 @@ class OpenAICompatibleClient:
         client_args = {
             "base_url": self.base_url,
             "api_key": self.api_key or "sk-dummy-key",
+            # Set a longer timeout for Ollama to have time to load models
+            "timeout": 120.0,  # 2 minutes timeout
         }
-            
+        
+        # Don't pass our CachedSession directly to OpenAI client
+        # as it expects a different interface with a 'timeout' attribute
+        # We'll keep the session for our own use if needed
+        
         self.client = openai.OpenAI(**client_args)
 
     def _make_api_request(self, **kwargs) -> Dict[str, Any]:
         """Make API request with retry logic"""
+        # Reload retry config to ensure we get the latest environment variables
+        from yt_obsidian.config import RetryConfig
+        retry_config = RetryConfig()
+        
+        # Get the retry config
+        max_retries = retry_config.max_retries
+        initial_delay = retry_config.initial_delay
+        max_delay = retry_config.max_delay
+        exp_base = retry_config.exponential_base
+        
         @retry(
-            stop=stop_after_attempt(self.settings.retry_config.max_retries + 1),  # +1 for initial attempt
+            stop=stop_after_attempt(max_retries + 1),  # +1 for initial attempt
             wait=wait_exponential(
-                multiplier=self.settings.retry_config.initial_delay,
-                max=self.settings.retry_config.max_delay,
-                exp_base=self.settings.retry_config.exponential_base
+                multiplier=initial_delay,
+                max=max_delay,
+                exp_base=exp_base
             ),
-            retry=retry_if_exception_type((openai.APIError, openai.APIConnectionError, openai.RateLimitError)),
+            # Include timeout and connection errors for Ollama model loading
+            retry=retry_if_exception_type((
+                openai.APIError,
+                openai.APIConnectionError,
+                openai.RateLimitError,
+                socket.timeout,
+                ConnectionError,
+                Exception  # Catch all exceptions to be more resilient
+            )),
             reraise=True
         )
         def _request():

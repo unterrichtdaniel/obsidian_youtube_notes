@@ -52,3 +52,6 @@ Thumbs.db
 
 # Obsidian vault (or other local content)
 vault/
+
+# Aider AI assistant metadata
+.aider*

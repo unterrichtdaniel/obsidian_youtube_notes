@@ -1,17 +1,26 @@
 import os
 import yaml
 from datetime import datetime
-from typing import Dict
+from typing import Dict, Optional, TYPE_CHECKING
 from pathlib import Path # Added Path import
+
+# Use TYPE_CHECKING to avoid circular imports
+if TYPE_CHECKING:
+    from ..container import CachedSession
 
 from ..config import settings
 from ..utils import slugify
 from ..clients.openai_compatible_client import OpenAICompatibleClient, SummaryRequest
 
 class MarkdownWriter:
-    # Removed vault_path from init
-    def __init__(self):
-        pass # No initialization needed for path anymore
+    def __init__(self, session: Optional["CachedSession"] = None):
+        """
+        Initialize the markdown writer with an optional session.
+        
+        Args:
+            session: Optional CachedSession for HTTP requests with retry and timeout handling
+        """
+        self.session = session
 
     # Added output_dir parameter and type hint
     def write_video_note(self, video_meta: Dict, transcript: str, output_dir: Path) -> str:
@@ -78,7 +87,7 @@ class MarkdownWriter:
         content.append(f"[Watch on YouTube](https://youtu.be/{video_id})\n")
         
         # Generate and add summary
-        client = OpenAICompatibleClient()
+        client = OpenAICompatibleClient(session=self.session)
         summary_request = SummaryRequest(transcript=transcript)
         summary = client.generate_summary(summary_request)
         content.append("## Summary\n")

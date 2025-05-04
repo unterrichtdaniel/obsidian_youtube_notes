@@ -1,12 +1,70 @@
 import logging
+import httplib2
 from googleapiclient.discovery import build
-from typing import Optional # Import Optional
+from googleapiclient.http import HttpRequest
+from typing import Optional, Any, Dict, TYPE_CHECKING
+import re
+
+# Use TYPE_CHECKING to avoid circular imports
+if TYPE_CHECKING:
+    from ..container import CachedSession
 
 logger = logging.getLogger(__name__)
 
+class SessionAwareHttp(httplib2.Http):
+    """Custom HTTP class that uses the provided requests session for HTTP requests."""
+    
+    def __init__(self, session=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.session = session
+        
+    def request(self, uri, method="GET", body=None, headers=None, **kwargs):
+        """Override request method to use the session if available."""
+        if self.session is None:
+            return super().request(uri, method, body, headers, **kwargs)
+        
+        # Convert httplib2 request to requests format
+        if headers is None:
+            headers = {}
+        
+        try:
+            # Use the session to make the request
+            response = self.session.request(
+                method=method,
+                url=uri,
+                data=body,
+                headers=headers
+            )
+            
+            # Convert requests response to httplib2 format
+            content = response.content
+            response_headers = dict(response.headers)
+            status = response.status_code
+            
+            return (httplib2.Response(response_headers), content)
+        except Exception as e:
+            # Log the error and fall back to httplib2
+            logging.error(f"Error using session for request: {e}")
+            return super().request(uri, method, body, headers, **kwargs)
+
 class YouTubeClient:
-    def __init__(self, api_key: str):
-        self.youtube = build("youtube", "v3", developerKey=api_key)
+    def __init__(self, api_key: str, session: Optional["CachedSession"] = None):
+        """
+        Initialize the YouTube client with API key and optional session.
+        
+        Args:
+            api_key: YouTube API key for authentication
+            session: Optional CachedSession for HTTP requests with retry and timeout handling
+        """
+        self.api_key = api_key
+        self.session = session
+        
+        # Create a custom HTTP object that uses our session if provided
+        http = None
+        if session:
+            http = SessionAwareHttp(session=session)
+            
+        self.youtube = build("youtube", "v3", developerKey=api_key, http=http)
         
     def _paginate_results(self, resource, **kwargs) -> list[dict]:
         """
@@ -101,6 +159,57 @@ class YouTubeClient:
             content_type will be one of 'video', 'playlist', 'channel'.
         """
         logger.debug(f"Attempting API verification for input: '{input_str}'")
+        # Handle YouTube handle URLs like https://www.youtube.com/@handle
+        if "youtube.com" in input_str and "@" in input_str:
+            m = re.search(r'@(?P<handle>[^/?&#]+)', input_str)
+            if m:
+                handle = m.group("handle")
+                logger.debug(f"Extracted handle: '{handle}' from URL: '{input_str}'")
+                try:
+                    # Search for channel by handle
+                    logger.debug(f"Searching for channel with query: '@{handle}'")
+                    search_resp = self.youtube.search().list(
+                        q=f"@{handle}",
+                        part="id",
+                        type="channel",
+                        maxResults=1
+                    ).execute()
+                    
+                    # Log the full response for debugging
+                    logger.debug(f"Channel handle search response: {search_resp}")
+                    
+                    items = search_resp.get("items", [])
+                    logger.debug(f"Found {len(items)} items in search response")
+                    
+                    if items:
+                        channel_id = items[0].get("id", {}).get("channelId")
+                        if channel_id:
+                            logger.info(f"Detected channel handle '{handle}', ID={channel_id}")
+                            return "channel", channel_id
+                        else:
+                            logger.warning(f"Channel ID not found in search result for handle '{handle}'. Result item: {items[0]}")
+                    else:
+                        logger.warning(f"No items found in search results for handle '{handle}'")
+                        
+                    # Try an alternative approach - search by channel name without @ symbol
+                    logger.debug(f"Trying alternative search without @ symbol for handle: '{handle}'")
+                    alt_search_resp = self.youtube.search().list(
+                        q=handle,
+                        part="id",
+                        type="channel",
+                        maxResults=1
+                    ).execute()
+                    
+                    alt_items = alt_search_resp.get("items", [])
+                    logger.debug(f"Found {len(alt_items)} items in alternative search response")
+                    
+                    if alt_items:
+                        alt_channel_id = alt_items[0].get("id", {}).get("channelId")
+                        if alt_channel_id:
+                            logger.info(f"Detected channel via alternative search for '{handle}', ID={alt_channel_id}")
+                            return "channel", alt_channel_id
+                except Exception as e:
+                    logger.warning(f"Error resolving handle '{handle}': {e}", exc_info=True)
         try:
             # Search for the input string, prioritizing exact matches if possible.
             # We limit results to 1 as we only need the top hit to identify the type.

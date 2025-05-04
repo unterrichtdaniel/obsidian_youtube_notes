@@ -69,17 +69,32 @@ direnv allow
 
 ## Usage
 
-First activate the Poetry environment:
+Before using the tool, activate the Poetry environment:
+
 ```bash
 poetry shell
 ```
 
-Then, run the tool using the `process` command followed by the YouTube URL or ID:
+Use the `process` command to generate Obsidian notes from a YouTube URL or ID:
+
 ```bash
 python -m yt_obsidian.main process <URL_or_ID> [OPTIONS]
 ```
 
-The tool automatically detects whether the input is a video, playlist, or channel URL/ID using the YouTube API for reliable validation.
+**Options:**
+- `--output-dir DIRECTORY`  
+  Specify the directory where notes will be saved. Defaults to the `OBSIDIAN_VAULT_PATH` environment variable.
+- `--overwrite`  
+  Overwrite existing notes. By default, existing notes are skipped.
+- `--max-depth INTEGER`  
+  For channel processing, limit the number of playlists to process (0 = all playlists).
+- `--dry-run`  
+  Show the planned actions without fetching transcripts, calling the AI, or writing any files.
+- `--verbose`, `-v`  
+  Enable detailed (DEBUG) logging for troubleshooting.
+- `--help`  
+  Show the help message and exit.
+
 
 ### Examples
 
