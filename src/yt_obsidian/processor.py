@@ -81,10 +81,19 @@ class VideoProcessor:
                 with open(filepath, 'r', encoding='utf-8') as f:
                     content = f.read()
                     if content.startswith('---'):
-                        _, frontmatter, _ = content.split('---', 2)
-                        metadata = yaml.safe_load(frontmatter)
-                        if 'youtube_id' in metadata:
-                            video_ids.add(metadata['youtube_id'])
+                        # Find the closing frontmatter delimiter
+                        parts = content.split('---', 2)
+                        if len(parts) >= 3:  # Ensure we have a proper frontmatter section
+                            frontmatter = parts[1]
+                            # Handle empty or malformed YAML
+                            try:
+                                metadata = yaml.safe_load(frontmatter)
+                                if metadata and isinstance(metadata, dict) and 'youtube_id' in metadata:
+                                    video_ids.add(metadata['youtube_id'])
+                            except yaml.YAMLError as yaml_error:
+                                logger.warning(f"YAML parsing error in {filename}: {yaml_error}")
+                        else:
+                            logger.warning(f"File {filename} has incomplete frontmatter (missing closing '---')")
             except Exception as e:
                 logger.warning(f"Error reading {filename}: {e}")
                 

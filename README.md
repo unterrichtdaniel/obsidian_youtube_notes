@@ -154,19 +154,51 @@ python -m yt_obsidian.main process "https://www.youtube.com/@channelhandle"
     ```
 -   `--help`: Show the help message and exit.
 
+### Supported YouTube URL Formats
+
+This tool supports a wide range of YouTube URL formats for videos, playlists, and channels:
+
+#### Video URL Formats
+- Standard watch URLs: `https://www.youtube.com/watch?v=VIDEO_ID`
+- Shortened URLs: `https://youtu.be/VIDEO_ID`
+- Shortened URLs with parameters: `https://youtu.be/VIDEO_ID?si=TRACKING_ID&t=TIMESTAMP`
+- Embedded player URLs: `https://www.youtube.com/embed/VIDEO_ID`
+- YouTube Shorts: `https://www.youtube.com/shorts/VIDEO_ID`
+- Mobile URLs: `https://m.youtube.com/watch?v=VIDEO_ID`
+- Legacy v/ format: `https://www.youtube.com/v/VIDEO_ID`
+- Web format: `https://www.youtube.com/web/VIDEO_ID`
+- Simple video IDs (11 characters): `dQw4w9WgXcQ`
+
+#### Playlist URL Formats
+- Standard playlist URLs: `https://www.youtube.com/playlist?list=PLAYLIST_ID`
+- Playlist in watch URLs: `https://www.youtube.com/watch?v=VIDEO_ID&list=PLAYLIST_ID`
+- Simple playlist IDs (starts with PL): `PLrxxIuPUBEH3pMfkRMe3DxF-6OsMeJM4_`
+
+#### Channel URL Formats
+- Standard channel URLs: `https://www.youtube.com/channel/CHANNEL_ID`
+- Custom name URLs: `https://www.youtube.com/c/CHANNEL_NAME`
+- Channel handles: `https://www.youtube.com/@USERNAME`
+- Simple channel IDs (starts with UC): `UCXgNOWiX_xRl8EiN3HJMVAQ`
+
+The tool first attempts to parse the URL format directly and falls back to the YouTube API for verification if needed.
+
 ### Content Detection
 
-The tool uses the YouTube API to validate and detect the content type from the provided URL or ID. This approach provides several benefits:
+The tool uses a combination of direct URL pattern matching and YouTube API verification to detect content types:
 
-- Reliable detection of video, playlist, and channel content
-- Support for various URL formats (standard URLs, shortened URLs, mobile URLs)
-- Support for channel handles (@username) and custom channel URLs
-- Canonical ID resolution for consistent processing
+1. **Pattern Matching**: First attempts to identify video, playlist, or channel IDs directly from the URL structure
+2. **API Verification**: Falls back to the YouTube API for verification if pattern matching is unsuccessful
+
+This hybrid approach provides several benefits:
+- More reliable detection of content types (videos, playlists, channels)
+- Faster processing for standard URL formats without requiring API calls
+- Robust handling of a wide range of YouTube URL variants
+- Canonical ID resolution for consistent content processing
 
 ### Process Overview
 
 When you run the tool, it will:
-1. Detect the content type (video, playlist, channel) from the input URL/ID using the YouTube API.
+1. Detect the content type (video, playlist, channel) from the input URL/ID using pattern matching and/or the YouTube API.
 2. Fetch relevant metadata and transcript(s).
 3. Generate AI summaries and key points using your configured service (see Configuration section).
 4. Extract relevant keywords from the transcript for improved searchability.

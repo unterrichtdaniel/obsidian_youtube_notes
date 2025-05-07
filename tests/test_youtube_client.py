@@ -187,15 +187,92 @@ def test_get_channel_playlists_pagination(youtube_client):
         assert first_call_kwargs.get("pageToken") is None
         assert second_call_kwargs.get("pageToken") == "page2_token"
 
-# New tests for verify_input_type method
-def test_verify_input_type_video(youtube_client):
-    """Test verifying a video URL/ID using the YouTube API."""
+# Tests for new direct URL pattern handling
+def test_verify_input_type_youtu_be_shortened_url(youtube_client):
+    """Test detecting video IDs from youtu.be shortened URLs."""
+    # No need to mock the API since we're testing direct pattern matching
+    
+    # Test with standard shortened URL
+    content_type, content_id = youtube_client.verify_input_type("https://youtu.be/dQw4w9WgXcQ")
+    assert content_type == "video"
+    assert content_id == "dQw4w9WgXcQ"
+    
+    # Test with shortened URL containing tracking parameters
+    content_type, content_id = youtube_client.verify_input_type("https://youtu.be/VqM352FnaPE?si=2t-dKn6P4-KoTlsr")
+    assert content_type == "video"
+    assert content_id == "VqM352FnaPE"
+    
+    # Test with shortened URL containing timestamp
+    content_type, content_id = youtube_client.verify_input_type("https://youtu.be/dQw4w9WgXcQ?t=42")
+    assert content_type == "video"
+    assert content_id == "dQw4w9WgXcQ"
+    """Test detecting video IDs from youtu.be shortened URLs."""
+    # No need to mock the API since we're testing direct pattern matching
+    
+    # Test with standard shortened URL
+    content_type, content_id = youtube_client.verify_input_type("https://youtu.be/dQw4w9WgXcQ")
+    assert content_type == "video"
+    assert content_id == "dQw4w9WgXcQ"
+    
+    # Test with shortened URL containing tracking parameters
+    content_type, content_id = youtube_client.verify_input_type("https://youtu.be/VqM352FnaPE?si=2t-dKn6P4-KoTlsr")
+    assert content_type == "video"
+    assert content_id == "VqM352FnaPE"
+    
+    # Test with shortened URL containing timestamp
+    content_type, content_id = youtube_client.verify_input_type("https://youtu.be/dQw4w9WgXcQ?t=42")
+    assert content_type == "video"
+    assert content_id == "dQw4w9WgXcQ"
+
+def test_verify_input_type_direct_watch_url(youtube_client):
+    """Test detecting video IDs from youtube.com/watch URLs."""
+    # Test standard watch URL
+    content_type, content_id = youtube_client.verify_input_type("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+    assert content_type == "video"
+    assert content_id == "dQw4w9WgXcQ"
+    
+    # Test watch URL with additional parameters
+    content_type, content_id = youtube_client.verify_input_type("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42&list=PL123")
+    assert content_type == "video"
+    assert content_id == "dQw4w9WgXcQ"
+    
+    # Test watch URL without www
+    content_type, content_id = youtube_client.verify_input_type("https://youtube.com/watch?v=dQw4w9WgXcQ")
+    assert content_type == "video"
+    assert content_id == "dQw4w9WgXcQ"
+
+def test_verify_input_type_direct_playlist_url(youtube_client):
+    """Test detecting playlist IDs from youtube.com/playlist URLs."""
+    # Test standard playlist URL
+    content_type, content_id = youtube_client.verify_input_type("https://www.youtube.com/playlist?list=PLlaN88a7y2_plecYoJxvRFTLHVbIVAOoS")
+    assert content_type == "playlist"
+    assert content_id == "PLlaN88a7y2_plecYoJxvRFTLHVbIVAOoS"
+    
+    # Test playlist URL with additional parameters
+    content_type, content_id = youtube_client.verify_input_type("https://www.youtube.com/playlist?list=PLlaN88a7y2_plecYoJxvRFTLHVbIVAOoS&si=tracking")
+    assert content_type == "playlist"
+    assert content_id == "PLlaN88a7y2_plecYoJxvRFTLHVbIVAOoS"
+    
+def test_verify_input_type_additional_url_formats(youtube_client):
+    """Test detecting video IDs from additional URL formats."""
+    # Test YouTube Shorts URL
+    content_type, content_id = youtube_client.verify_input_type("https://www.youtube.com/shorts/dQw4w9WgXcQ")
+    assert content_type == "video"
+    assert content_id == "dQw4w9WgXcQ"
+    
+    # Test YouTube v/ URL format
+    content_type, content_id = youtube_client.verify_input_type("https://www.youtube.com/v/dQw4w9WgXcQ")
+    assert content_type == "video"
+    assert content_id == "dQw4w9WgXcQ"
+    
+    # Test channel with custom name URL (c/)
+    # For this test, we need to mock the API response
     mock_response = {
         "items": [
             {
                 "id": {
-                    "kind": "youtube#video",
-                    "videoId": "dQw4w9WgXcQ"
+                    "kind": "youtube#channel",
+                    "channelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw" 
                 }
             }
         ]
@@ -204,17 +281,35 @@ def test_verify_input_type_video(youtube_client):
     with patch.object(youtube_client.youtube, "search") as mock_search:
         mock_search.return_value.list.return_value.execute.return_value = mock_response
         
-        # Test with video ID
-        content_type, content_id = youtube_client.verify_input_type("dQw4w9WgXcQ")
+        content_type, content_id = youtube_client.verify_input_type("https://www.youtube.com/c/GoogleDevelopers")
+        assert content_type == "channel"
+        assert content_id == "UC_x5XG1OV2P6uZZ5FSM9Ttw"
+    
+    # Test channel with handle URL (@username)
+    with patch.object(youtube_client.youtube, "search") as mock_search:
+        mock_search.return_value.list.return_value.execute.return_value = mock_response
         
-        assert content_type == "video"
-        assert content_id == "dQw4w9WgXcQ"
-        mock_search.return_value.list.assert_called_with(
-            q="dQw4w9WgXcQ",
-            part="id",
-            maxResults=1,
-            type="video,playlist,channel"
-        )
+        content_type, content_id = youtube_client.verify_input_type("https://www.youtube.com/@GoogleDevelopers")
+        assert content_type == "channel"
+        assert content_id == "UC_x5XG1OV2P6uZZ5FSM9Ttw"
+        
+    # Test playlist in watch URL
+    content_type, content_id = youtube_client.verify_input_type("https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLlaN88a7y2_plecYoJxvRFTLHVbIVAOoS")
+    assert content_type == "playlist"
+    assert content_id == "PLlaN88a7y2_plecYoJxvRFTLHVbIVAOoS"
+
+def test_verify_input_type_mixed_urls(youtube_client):
+    """Test handling of special cases like mobile links, video IDs in playlists, etc."""
+    # Test mobile URL
+    content_type, content_id = youtube_client.verify_input_type("https://m.youtube.com/watch?v=dQw4w9WgXcQ")
+    assert content_type == "video"
+    assert content_id == "dQw4w9WgXcQ"
+    
+    # Test embedded video URL
+    content_type, content_id = youtube_client.verify_input_type("https://www.youtube.com/embed/dQw4w9WgXcQ")
+    assert content_type == "video"
+    assert content_id == "dQw4w9WgXcQ"
+
 
 def test_verify_input_type_playlist(youtube_client):
     """Test verifying a playlist URL/ID using the YouTube API."""

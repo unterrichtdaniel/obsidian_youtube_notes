@@ -159,6 +159,17 @@ class YouTubeClient:
             content_type will be one of 'video', 'playlist', 'channel'.
         """
         logger.debug(f"Attempting API verification for input: '{input_str}'")
+        
+        # Pre-process for shortened URLs (youtu.be)
+        if "youtu.be/" in input_str:
+            logger.debug(f"Detected shortened youtu.be URL: '{input_str}'")
+            # Extract video ID from youtu.be URLs - get everything between youtu.be/ and any ? or # or end
+            match = re.search(r'youtu\.be/([^/?&#]+)', input_str)
+            if match:
+                video_id = match.group(1)
+                logger.info(f"Extracted video ID: '{video_id}' from shortened URL: '{input_str}'")
+                return "video", video_id
+                
         # Handle YouTube handle URLs like https://www.youtube.com/@handle
         if "youtube.com" in input_str and "@" in input_str:
             m = re.search(r'@(?P<handle>[^/?&#]+)', input_str)
@@ -210,6 +221,134 @@ class YouTubeClient:
                             return "channel", alt_channel_id
                 except Exception as e:
                     logger.warning(f"Error resolving handle '{handle}': {e}", exc_info=True)
+                    
+        # Pre-process for watch URLs to extract video IDs
+        if "youtube.com/watch" in input_str:
+            match = re.search(r'v=([^&]+)', input_str)
+            if match:
+                video_id = match.group(1)
+                logger.info(f"Extracted video ID: '{video_id}' from watch URL: '{input_str}'")
+                return "video", video_id
+                
+        # Handle embedded video URLs
+        if "youtube.com/embed/" in input_str:
+            match = re.search(r'embed/([^/?&#]+)', input_str)
+            if match:
+                video_id = match.group(1)
+                logger.info(f"Extracted video ID: '{video_id}' from embed URL: '{input_str}'")
+                return "video", video_id
+                
+        # Handle YouTube Shorts URLs
+        if "youtube.com/shorts/" in input_str:
+            match = re.search(r'shorts/([^/?&#]+)', input_str)
+            if match:
+                video_id = match.group(1)
+                logger.info(f"Extracted video ID: '{video_id}' from shorts URL: '{input_str}'")
+                return "video", video_id
+                
+        # Handle v/ format URLs
+        if "youtube.com/v/" in input_str:
+            match = re.search(r'v/([^/?&#]+)', input_str)
+            if match:
+                video_id = match.group(1)
+                logger.info(f"Extracted video ID: '{video_id}' from v/ URL: '{input_str}'")
+                return "video", video_id
+                
+        # Handle mobile m.youtube.com URLs
+        if "m.youtube.com/" in input_str:
+            match = re.search(r'v=([^&]+)', input_str)
+            if match:
+                video_id = match.group(1)
+                logger.info(f"Extracted video ID: '{video_id}' from mobile URL: '{input_str}'")
+                return "video", video_id
+                
+        # Handle older "web" URLs
+        if "youtube.com/web/" in input_str:
+            match = re.search(r'web/([^/?&#]+)', input_str)
+            if match:
+                video_id = match.group(1)
+                logger.info(f"Extracted video ID: '{video_id}' from web URL: '{input_str}'")
+                return "video", video_id
+                
+        # Handle YouTube handle URLs (@username)
+        if "@" in input_str:
+            match = re.search(r'@([^/?&#]+)', input_str)
+            if match:
+                handle = match.group(1)
+                logger.info(f"Extracted handle: '{handle}' from URL: '{input_str}'")
+                # We'll need to use the API to resolve the handle to a channel ID
+                try:
+                    # Search for channel by handle
+                    logger.debug(f"Searching for channel with query: '@{handle}'")
+                    search_resp = self.youtube.search().list(
+                        q=f"@{handle}",
+                        part="id",
+                        type="channel",
+                        maxResults=1
+                    ).execute()
+                    
+                    items = search_resp.get("items", [])
+                    if items and items[0].get("id", {}).get("channelId"):
+                        channel_id = items[0].get("id", {}).get("channelId")
+                        logger.info(f"Detected channel handle '{handle}', ID={channel_id}")
+                        return "channel", channel_id
+                except Exception as e:
+                    logger.warning(f"Error resolving handle '{handle}': {e}", exc_info=True)
+                    
+        # Handle channel URLs with c/ format (custom channel name)
+        if "youtube.com/c/" in input_str:
+            match = re.search(r'c/([^/?&#]+)', input_str)
+            if match:
+                channel_name = match.group(1)
+                logger.info(f"Extracted channel name: '{channel_name}' from c/ URL: '{input_str}'")
+                # Need to use API to resolve custom channel name to ID
+                try:
+                    search_resp = self.youtube.search().list(
+                        q=channel_name,
+                        part="id",
+                        type="channel",
+                        maxResults=1
+                    ).execute()
+                    
+                    items = search_resp.get("items", [])
+                    if items and items[0].get("id", {}).get("channelId"):
+                        channel_id = items[0].get("id", {}).get("channelId")
+                        logger.info(f"Detected channel custom name '{channel_name}', ID={channel_id}")
+                        return "channel", channel_id
+                except Exception as e:
+                    logger.warning(f"Error resolving channel name '{channel_name}': {e}", exc_info=True)
+        
+        # Handle direct channel URLs
+        if "youtube.com/channel/" in input_str:
+            match = re.search(r'channel/([^/?&#]+)', input_str)
+            if match:
+                channel_id = match.group(1)
+                logger.info(f"Extracted channel ID: '{channel_id}' from channel URL: '{input_str}'")
+                return "channel", channel_id
+                
+        # Handle playlist URLs - both direct and in watch URLs
+        if "youtube.com/playlist" in input_str or "list=" in input_str:
+            match = re.search(r'list=([^&]+)', input_str)
+            if match:
+                playlist_id = match.group(1)
+                logger.info(f"Extracted playlist ID: '{playlist_id}' from URL: '{input_str}'")
+                return "playlist", playlist_id
+        # Check for simple video ID patterns (11 characters with letters and numbers)
+        if re.match(r'^[a-zA-Z0-9_-]{11}$', input_str):
+            logger.info(f"Detected simple video ID pattern: '{input_str}'")
+            return "video", input_str
+            
+        # Check for playlist ID patterns
+        if re.match(r'^PL[a-zA-Z0-9_-]{16,}$', input_str) or re.match(r'^[a-zA-Z0-9_-]{9,}$', input_str):
+            logger.info(f"Detected potential playlist ID pattern: '{input_str}'")
+            return "playlist", input_str
+            
+        # Check for channel ID patterns
+        if re.match(r'^UC[a-zA-Z0-9_-]{22}$', input_str):
+            logger.info(f"Detected potential channel ID pattern: '{input_str}'")
+            return "channel", input_str
+        
+        # If we didn't match any of the URL patterns above, use the API as a fallback
         try:
             # Search for the input string, prioritizing exact matches if possible.
             # We limit results to 1 as we only need the top hit to identify the type.
