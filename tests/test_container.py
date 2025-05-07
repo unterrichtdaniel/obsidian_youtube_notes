@@ -20,6 +20,10 @@ def mock_config():
     config.request_timeout = 30
     config.retry_count = 3
     config.obsidian_vault_path = Path("/test/path")
+    config.model = "test-model"
+    config.api_endpoint = "http://localhost:11434/v1"
+    config.api_key = "ollama"
+    config.max_keywords = 20
     return config
 
 
@@ -40,13 +44,20 @@ class TestServiceContainer:
 
     def test_initialization_without_config(self):
         """Test that the container loads config if not provided."""
-        with patch('yt_obsidian.config.settings') as mock_settings:
+        # Create a mock AppConfig instance
+        mock_config = Mock()
+        mock_config.youtube_api_key = "test-api-key"
+        mock_config.model = "test-model"
+        mock_config.api_endpoint = "http://test-endpoint.com"
+        
+        # Patch the config constructor in the correct module location
+        with patch('yt_obsidian.config.AppConfig', return_value=mock_config):
             # Create a new container without providing a config
             container = ServiceContainer()
             
-            # Verify config is set to the settings instance
-            assert container.config == mock_settings
-            mock_settings.validate.assert_called_once()
+            # Verify config is set to our mock config
+            assert container.config == mock_config
+            mock_config.validate.assert_called_once()
 
     def test_get_youtube_client(self, mock_config):
         """Test that get_youtube_client returns a properly configured YouTubeClient."""
