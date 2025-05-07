@@ -144,7 +144,7 @@ class VideoProcessor:
             # Log the specific error for this video but allow loop (if any) to continue
             logger.error(f"Failed to process video {video_id}: {e}", exc_info=logging.getLogger().level == logging.DEBUG)
     
-    def process_playlist(self, playlist_id: str, output_dir: Path, overwrite: bool):
+    def process_playlist(self, playlist_id: str, output_dir: Path, overwrite: bool, limit: int = 0):
         """
         Fetches videos from a playlist, filters, and processes them.
         
@@ -195,6 +195,11 @@ class VideoProcessor:
                 logger.info(f"No new videos to process for playlist {playlist_id}.")
                 return
 
+            # Apply limit if specified
+            if limit > 0 and len(videos_to_process_ids) > limit:
+                logger.info(f"Limiting to {limit} videos out of {len(videos_to_process_ids)} based on --limit parameter")
+                videos_to_process_ids = videos_to_process_ids[:limit]
+            
             # Process the filtered video IDs individually
             processed_count = 0
             total_to_process = len(videos_to_process_ids)

@@ -41,6 +41,15 @@ export RETRY_EXPONENTIAL_BASE="2.0"
 # Use this if you have Ollama running locally
 export API_ENDPOINT="http://localhost:11434/v1"
 export API_KEY=""  # Leave empty for local Ollama
+
+# IMPORTANT: Choose a model appropriate for your hardware
+# Smaller models (3B-7B) work well on most systems
+# Larger models (12B+) require more RAM/GPU and may timeout
+# Available models (see src/yt_obsidian/model_configs.py for full list):
+#  - gemma:3b (lightweight, fast)
+#  - gemma:7b (balanced)
+#  - gemma3:12b (better quality but slower, needs good hardware)
+#  - llama3:8b (good all-around)
 export MODEL="gemma:3b"  # Use any model you've pulled with 'ollama pull'
 export TEST_MODEL="gemma:3b"
 
@@ -74,6 +83,13 @@ export TEST_MODEL="gemma:3b"
 # export API_KEY="your-azure-api-key"
 # export MODEL="gpt-35-turbo"  # Must match your Azure deployment
 # export TEST_MODEL="gpt-35-turbo"
+
+#############################
+# Content Generation        #
+#############################
+
+# Maximum number of keywords to generate from transcript (default: 20)
+export MAX_KEYWORDS="20"
 
 # After configuring:
 # 1. Save this file as .envrc

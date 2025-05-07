@@ -2,7 +2,7 @@ import os
 import pytest
 from unittest.mock import Mock, patch, PropertyMock
 import openai
-from yt_obsidian.clients.openai_compatible_client import OpenAICompatibleClient, SummaryRequest
+from yt_obsidian.clients.openai_compatible_client import OpenAICompatibleClient, SummaryRequest, KeywordsRequest
 from yt_obsidian.config import Settings
 
 @pytest.fixture
@@ -97,8 +97,10 @@ def test_generate_summary_success(mock_openai, mock_env):
     assert call_args["temperature"] == 0.3
     assert len(call_args["messages"]) == 2
     assert call_args["messages"][0]["role"] == "system"
+    assert "skilled summarizer" in call_args["messages"][0]["content"]
     assert call_args["messages"][1]["role"] == "user"
     assert "Summarize this lecture/interview transcript" in call_args["messages"][1]["content"]
+    assert "Here is the transcript to summarize:" in call_args["messages"][1]["content"]
     assert result == "Test summary\n- Key points"
 
 def test_generate_summary_with_template(mock_openai, mock_env):
@@ -117,20 +119,82 @@ def test_generate_summary_with_template(mock_openai, mock_env):
     result = client.generate_summary(request)
     
     # Verify
-    expected_prompt = (
-        "Summarize this lecture/interview transcript. Include:\n"
-        "1. Resources mentioned (books/papers/people)\n"
-        "2. Important concepts\n"
-        "3. Key takeaways\n"
-        "4. Chronological overview with timestamp ranges\n\n"
-        "Structure the summary for readability using markdown.\n\n"
-        "Use this template:\nCustom template"
-    )
-    
+    # We don't need to check the exact content anymore since we've modified the format
+    # Just verify the key components are present
     mock_client.chat.completions.create.assert_called_once()
     call_args = mock_client.chat.completions.create.call_args[1]
-    assert call_args["messages"][1]["content"] == expected_prompt
+    user_message = call_args["messages"][1]["content"]
+    assert "Summarize this lecture/interview transcript" in user_message
+    assert "Use this template:\nCustom template" in user_message
+    assert "Here is the transcript to summarize:" in user_message
+    assert "Test transcript" in user_message
     assert result == "Test summary with template"
+    
+def test_generate_keywords_success(mock_openai, mock_env):
+    # Setup
+    mock_client = Mock()
+    mock_openai.OpenAI.return_value = mock_client
+    
+    mock_response = Mock()
+    mock_response.choices = [Mock(message=Mock(content="AI, machine learning, neural networks, deep learning"))]
+    mock_client.chat.completions.create.return_value = mock_response
+    
+    client = OpenAICompatibleClient()
+    request = KeywordsRequest(transcript="Test transcript about AI and machine learning")
+    
+    # Execute
+    result = client.generate_keywords(request)
+    
+    # Verify
+    mock_client.chat.completions.create.assert_called_once()
+    call_args = mock_client.chat.completions.create.call_args[1]
+    assert call_args["model"] == "test-model"
+    assert call_args["temperature"] == 0.3
+    assert len(call_args["messages"]) == 2
+    assert call_args["messages"][0]["role"] == "system"
+    assert "skilled keyword extractor" in call_args["messages"][0]["content"]
+    assert call_args["messages"][1]["role"] == "user"
+    assert "Extract the most important keywords" in call_args["messages"][1]["content"]
+    assert "Here is the transcript to extract keywords from:" in call_args["messages"][1]["content"]
+    assert result == ["AI", "machine learning", "neural networks", "deep learning"]
+    
+def test_generate_keywords_with_max_limit(mock_openai, mock_env):
+    # Setup
+    mock_client = Mock()
+    mock_openai.OpenAI.return_value = mock_client
+    
+    mock_response = Mock()
+    mock_response.choices = [Mock(message=Mock(content="AI, machine learning, neural networks"))]
+    mock_client.chat.completions.create.return_value = mock_response
+    
+    client = OpenAICompatibleClient()
+    request = KeywordsRequest(transcript="Test transcript", max_keywords=3)
+    
+    # Execute
+    result = client.generate_keywords(request)
+    
+    # Verify
+    mock_client.chat.completions.create.assert_called_once()
+    call_args = mock_client.chat.completions.create.call_args[1]
+    assert "3 keywords" in call_args["messages"][1]["content"]
+    assert result == ["AI", "machine learning", "neural networks"]
+    
+def test_generate_keywords_error_handling(mock_openai, mock_env):
+    # Setup to fail
+    mock_client = Mock()
+    mock_openai.OpenAI.return_value = mock_client
+    
+    mock_client.chat.completions.create.side_effect = Exception("API error")
+    
+    client = OpenAICompatibleClient()
+    request = KeywordsRequest(transcript="Test transcript")
+    
+    # Execute
+    result = client.generate_keywords(request)
+    
+    # Verify - should return empty list instead of raising
+    assert result == []
+    assert mock_client.chat.completions.create.call_count == 1
 
 def test_retry_config_loading(mock_env):
     # Instead of testing the actual environment variable loading,

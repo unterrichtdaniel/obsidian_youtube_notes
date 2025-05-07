@@ -14,6 +14,7 @@ from typing import Set, Tuple, Optional
 from .clients.youtube_client import YouTubeClient
 from .clients.transcript_client import TranscriptClient
 from .writers.markdown_writer import MarkdownWriter
+from .model_configs import list_available_models
 
 # --- Helper Functions for Testing ---
 # These functions are used by tests and wrap processor functionality
@@ -62,8 +63,8 @@ def process_video(video_id: str, output_dir: Path, overwrite: bool = False,
             processor = container.create_processor()
             processor.process_video(video_id, output_dir, overwrite)
 
-def process_playlist(playlist_id: str, output_dir: Path, overwrite: bool = False,
-                    youtube_client=None, transcript_client=None, writer=None):
+def process_playlist(playlist_id: str, output_dir: Path, overwrite: bool = False, limit: int = 0,
+                     youtube_client=None, transcript_client=None, writer=None):
     """
     Wrapper around processor.process_playlist for testing.
     Processes all videos in a playlist.
@@ -78,12 +79,12 @@ def process_playlist(playlist_id: str, output_dir: Path, overwrite: bool = False
         # For testing: create a processor with the provided clients
         from yt_obsidian.processor import VideoProcessor
         processor = VideoProcessor(youtube_client, transcript_client, writer)
-        processor.process_playlist(playlist_id, output_dir, overwrite)
+        processor.process_playlist(playlist_id, output_dir, overwrite, limit)
     else:
         # Normal operation: use the ServiceContainer
         with ServiceContainer() as container:
             processor = container.create_processor()
-            processor.process_playlist(playlist_id, output_dir, overwrite)
+            processor.process_playlist(playlist_id, output_dir, overwrite, limit)
 
 def process_channel(channel_id: str, output_dir: Path, overwrite: bool = False, max_depth: int = 0,
                    youtube_client=None, transcript_client=None, writer=None):
@@ -149,14 +150,27 @@ def cli():
     pass
 
 @cli.command()
+def models():
+    """
+    List available model configurations and their recommended settings.
+    """
+    print(list_available_models())
+    print("\nCurrent configuration:")
+    print(f"MODEL: {settings.model}")
+    print(f"API_ENDPOINT: {settings.api_endpoint}")
+    print(f"\nTo change models, set the MODEL environment variable in your .envrc file.")
+    print("Example: export MODEL=\"gemma:3b\"")
+
+@cli.command()
 @click.argument('input_str', metavar='INPUT')
 @click.option('--output-dir', type=click.Path(file_okay=False, dir_okay=True, writable=True, resolve_path=True),
               help=f"Directory to save notes. [Default: {settings.obsidian_vault_path}]")
 @click.option('--overwrite', is_flag=True, default=False, help="Regenerate notes even if they already exist.")
 @click.option('--max-depth', type=int, default=0, help="Max number of playlists to process per channel (0 for all).")
+@click.option('--limit', type=int, default=0, help="Max number of videos to process per playlist (0 for all).")
 @click.option('--dry-run', is_flag=True, default=False, help="Detect content and plan actions without writing files.")
 @click.option('--verbose', '-v', is_flag=True, default=False, help="Enable detailed (DEBUG) logging.")
-def process(input_str: str, output_dir: Optional[str], overwrite: bool, max_depth: int, dry_run: bool, verbose: bool):
+def process(input_str: str, output_dir: Optional[str], overwrite: bool, max_depth: int, limit: int, dry_run: bool, verbose: bool):
     """
     Processes a YouTube video, playlist, or channel URL/ID.
 
@@ -244,6 +258,7 @@ def process(input_str: str, output_dir: Optional[str], overwrite: bool, max_dept
             print(f"Output Directory: {target_output_dir}")
             print(f"Overwrite: {overwrite}")
             print(f"Max Depth (for channels): {max_depth}")
+            print(f"Video Limit (for playlists): {limit}")
             print(f"--------------------")
             sys.exit(0)
             
@@ -251,7 +266,7 @@ def process(input_str: str, output_dir: Optional[str], overwrite: bool, max_dept
         if content_type == "video":
             processor.process_video(content_id, target_output_dir, overwrite)
         elif content_type == "playlist":
-            processor.process_playlist(content_id, target_output_dir, overwrite)
+            processor.process_playlist(content_id, target_output_dir, overwrite, limit)
         elif content_type == "channel":
             processor.process_channel(content_id, target_output_dir, overwrite, max_depth)
         else:

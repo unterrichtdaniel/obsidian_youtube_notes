@@ -63,10 +63,11 @@ def test_write_video_note_creates_file(mock_env, tmp_path, video_meta, transcrip
     # 2. Instantiate the writer (no vault_path needed at init)
     writer = MarkdownWriter()
 
-    # Mock summary generation
+    # Mock summary and keywords generation
     with patch('yt_obsidian.writers.markdown_writer.OpenAICompatibleClient') as mock_client:
         mock_instance = mock_client.return_value
         mock_instance.generate_summary.return_value = "Test summary content"
+        mock_instance.generate_keywords.return_value = ["keyword1", "keyword2", "advanced topic"]
 
         # 3. Invoke the method under test, passing the output directory
         filepath = writer.write_video_note(video_meta, transcript, vault) # Pass vault as output_dir
@@ -91,6 +92,12 @@ def test_write_video_note_creates_file(mock_env, tmp_path, video_meta, transcrip
     assert "thumbnail: https://img.youtube.com/vi/abc123/default.jpg" in content
     assert "default_language: en" in content
     assert "default_audio_language: en" in content
+    
+    # Check for keywords section in frontmatter
+    assert "keywords:" in content
+    assert "- keyword1" in content
+    assert "- keyword2" in content
+    assert "- advanced topic" in content
 
     # Check for transcript section
     # Check for summary section
@@ -100,3 +107,69 @@ def test_write_video_note_creates_file(mock_env, tmp_path, video_meta, transcrip
     # Check for transcript section
     assert "## Transcript" in content
     assert "This is a test transcript." in content
+    
+def test_write_video_note_with_existing_tags(mock_env, tmp_path, video_meta, transcript):
+    # 1. Prepare a temporary vault directory
+    vault = tmp_path / "vault"
+    vault.mkdir()
+
+    # 2. Instantiate the writer
+    writer = MarkdownWriter()
+    
+    # Set up mock keywords that overlap with existing tags
+    with patch('yt_obsidian.writers.markdown_writer.OpenAICompatibleClient') as mock_client:
+        mock_instance = mock_client.return_value
+        mock_instance.generate_summary.return_value = "Test summary content"
+        # Return some keywords that overlap with existing tags (case differences to test case insensitivity)
+        mock_instance.generate_keywords.return_value = ["TEST", "Video", "keyword1", "keyword2"]
+
+        # 3. Invoke the method under test
+        filepath = writer.write_video_note(video_meta, transcript, vault)
+
+    # 4. Read its contents and check for frontmatter
+    with open(filepath, encoding="utf-8") as f:
+        content = f.read()
+
+    # Check that existing tags are preserved
+    assert "tags:" in content
+    assert "- test" in content
+    assert "- video" in content
+    assert "- metadata" in content
+    
+    # Check that only new keywords are added (not duplicates of existing tags)
+    assert "keywords:" in content
+    assert "- keyword1" in content
+    assert "- keyword2" in content
+    # TEST and Video should not be in keywords as they're already in tags (case-insensitive)
+    assert "- TEST" not in content
+    assert "- Video" not in content
+    
+def test_write_video_note_keywords_error_handling(mock_env, tmp_path, video_meta, transcript):
+    # 1. Prepare a temporary vault directory
+    vault = tmp_path / "vault"
+    vault.mkdir()
+
+    # 2. Instantiate the writer
+    writer = MarkdownWriter()
+    
+    # Set up mock to simulate error in keyword generation
+    with patch('yt_obsidian.writers.markdown_writer.OpenAICompatibleClient') as mock_client:
+        mock_instance = mock_client.return_value
+        mock_instance.generate_summary.return_value = "Test summary content"
+        # Simulate an error in keyword generation
+        mock_instance.generate_keywords.side_effect = Exception("Keyword generation failed")
+
+        # 3. Invoke the method under test - should not raise exception
+        filepath = writer.write_video_note(video_meta, transcript, vault)
+
+    # 4. Read its contents and check that the file was created successfully
+    with open(filepath, encoding="utf-8") as f:
+        content = f.read()
+
+    # Verify the file was created with summary and transcript but no keywords
+    assert "## Summary" in content
+    assert "Test summary content" in content
+    assert "## Transcript" in content
+    assert "This is a test transcript." in content
+    # Keywords should not be in the frontmatter
+    assert "keywords:" not in content

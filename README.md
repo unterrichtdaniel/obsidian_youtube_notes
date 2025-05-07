@@ -6,6 +6,7 @@ A Python tool that automatically creates structured Obsidian notes from YouTube 
 
 - Fetch YouTube video metadata and transcripts
 - Generate AI-powered summaries and key points
+- Extract relevant keywords from transcripts for better searchability
 - Create formatted Markdown notes compatible with Obsidian
 - Configurable output structure and formatting
 - YouTube API-based URL validation for reliable content detection
@@ -168,8 +169,9 @@ When you run the tool, it will:
 1. Detect the content type (video, playlist, channel) from the input URL/ID using the YouTube API.
 2. Fetch relevant metadata and transcript(s).
 3. Generate AI summaries and key points using your configured service (see Configuration section).
-4. Create formatted Markdown notes in the specified output directory.
-5. Link related notes (e.g., videos within a playlist).
+4. Extract relevant keywords from the transcript for improved searchability.
+5. Create formatted Markdown notes in the specified output directory with frontmatter including metadata and keywords.
+6. Link related notes (e.g., videos within a playlist).
 
 ## Project Structure
 

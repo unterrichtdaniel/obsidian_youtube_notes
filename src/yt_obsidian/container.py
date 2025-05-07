@@ -60,10 +60,16 @@ class ServiceContainer:
         # Use importlib to get the settings at runtime
         # This allows tests to mock the settings module
         if config is None:
-            from .config import settings
-            self.config = settings
+            from .config import settings, AppConfig
+            logger.info("Loading settings from config module")
+            # Force reload of settings to ensure we get the latest environment variables
+            self.config = AppConfig()
         else:
+            logger.info("Using provided config instance")
             self.config = config
+            
+        logger.info(f"Configuration loaded: youtube_api_key={self.config.youtube_api_key[:5]}..., model={self.config.model}")
+        logger.info(f"API endpoint: {self.config.api_endpoint}")
         self.config.validate()
         
         # Initialize the shared HTTP client
@@ -81,10 +87,12 @@ class ServiceContainer:
         Returns:
             YouTubeClient: Configured YouTube API client with shared HTTP session
         """
-        return YouTubeClient(
+        logger.info(f"Creating YouTube client with API key: {self.config.youtube_api_key[:5]}...")
+        client = YouTubeClient(
             api_key=self.config.youtube_api_key,
             session=self.http_client
         )
+        return client
     
     def get_transcript_client(self) -> TranscriptClient:
         """

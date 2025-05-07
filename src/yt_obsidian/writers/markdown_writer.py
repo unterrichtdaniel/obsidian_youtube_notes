@@ -10,7 +10,10 @@ if TYPE_CHECKING:
 
 from ..config import settings
 from ..utils import slugify
-from ..clients.openai_compatible_client import OpenAICompatibleClient, SummaryRequest
+from ..clients.openai_compatible_client import OpenAICompatibleClient, SummaryRequest, KeywordsRequest
+import logging
+
+logger = logging.getLogger(__name__)
 
 class MarkdownWriter:
     def __init__(self, session: Optional["CachedSession"] = None):
@@ -86,10 +89,82 @@ class MarkdownWriter:
         content.append(f"![Youtube Video](https://img.youtube.com/vi/{video_id}/0.jpg)")
         content.append(f"[Watch on YouTube](https://youtu.be/{video_id})\n")
         
-        # Generate and add summary
+        # Initialize OpenAI client
+        logger.info(f"Initializing OpenAICompatibleClient for video: {video_id}")
         client = OpenAICompatibleClient(session=self.session)
+        
+        # Generate and add keywords to frontmatter if transcript is available
+        if transcript:
+            try:
+                logger.info(f"Generating keywords for video: {video_id}")
+                logger.info(f"Transcript length: {len(transcript)} characters")
+                # Use max_keywords from config
+                keywords_request = KeywordsRequest(
+                    transcript=transcript,
+                    max_keywords=settings.max_keywords
+                )
+                keywords = client.generate_keywords(keywords_request)
+                
+                if keywords:
+                    logger.info(f"Adding {len(keywords)} keywords to frontmatter")
+                    # Add keywords to metadata if they don't already exist in tags
+                    existing_tags = set(metadata.get("tags", []))
+                    # Convert to lowercase for comparison
+                    existing_tags_lower = {tag.lower() if isinstance(tag, str) else tag for tag in existing_tags}
+                    
+                    # Filter out keywords that already exist in tags (case-insensitive)
+                    new_keywords = [kw for kw in keywords if kw.lower() not in existing_tags_lower]
+                    
+                    if new_keywords:
+                        metadata["keywords"] = new_keywords
+                        logger.debug(f"Added keywords to frontmatter: {new_keywords}")
+                    else:
+                        logger.debug("No new keywords to add (all already exist in tags)")
+                else:
+                    logger.warning("No keywords were generated")
+            except Exception as e:
+                logger.error(f"Failed to generate keywords: {str(e)}")
+                logger.error(f"Error type: {type(e).__name__}")
+                # Log the full exception traceback for better debugging
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                # Continue without keywords rather than failing the whole process
+        
+        # Regenerate YAML frontmatter with updated metadata (including keywords)
+        yaml_frontmatter_str = yaml.dump(
+            metadata,
+            allow_unicode=True,
+            sort_keys=False,
+            default_flow_style=False,
+            width=1000,
+            default_style='',
+            explicit_start=True,
+            explicit_end=True,
+            Dumper=yaml.SafeDumper
+        )
+        
+        # Reconstruct the frontmatter block with updated metadata
+        frontmatter_block = ["---", yaml_frontmatter_str.strip(), "---"]
+        
+        # Rebuild content with updated frontmatter
+        content = []
+        content.extend(frontmatter_block)
+        content.append(f"![Youtube Video](https://img.youtube.com/vi/{video_id}/0.jpg)")
+        content.append(f"[Watch on YouTube](https://youtu.be/{video_id})\n")
+        
+        # Generate and add summary
+        logger.info(f"Generating summary for video: {video_id}")
+        logger.info(f"Transcript length for summary: {len(transcript)} characters")
         summary_request = SummaryRequest(transcript=transcript)
-        summary = client.generate_summary(summary_request)
+        try:
+            summary = client.generate_summary(summary_request)
+            logger.info(f"Summary generation successful, length: {len(summary)} characters")
+        except Exception as e:
+            logger.error(f"Failed to generate summary: {str(e)}")
+            logger.error(f"Error type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            summary = "*Error generating summary. Please check the logs for details.*"
         content.append("## Summary\n")
         content.append(summary)
         content.append("\n")
